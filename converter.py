@@ -114,8 +114,6 @@ def convert_coco(
     for json_file in sorted(Path(labels_dir).resolve().glob("*.json")):
         fn = Path(save_dir) / json_file.stem  # folder name
         fn.mkdir(parents=True, exist_ok=True)
-        fn = Path(save_dir) / json_file.stem
-        fn.mkdir(parents=True, exist_ok=True)
 
         with open(json_file) as f:
             data = json.load(f)
@@ -184,7 +182,7 @@ def convert_coco(
 
 if __name__ == '__main__':
 
-    labels_dir = "datasets/SAR_AirCraft-1.0/annotations" # "datasets/source/Annotations"
-    save_dir = "datasets/SAR_AirCraft-1.0/labels"
+    labels_dir = "datasets/HRSID/annotations" # "datasets/source/Annotations"
+    save_dir = "datasets/HRSID/labels"
 
     convert_coco(labels_dir=labels_dir, save_dir=save_dir)
