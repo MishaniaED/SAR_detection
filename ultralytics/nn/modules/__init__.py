@@ -37,6 +37,7 @@ from .block import (
     BNContrastiveHead,
     Bottleneck,
     BottleneckCSP,
+    SFSConv,
     C2f,
     C2fAttn,
     C2fCIB,
@@ -103,6 +104,7 @@ from .transformer import (
 )
 
 __all__ = (
+    "SFSConv",
     "Conv",
     "Conv2",
     "LightConv",

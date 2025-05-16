@@ -3,10 +3,10 @@ from ultralytics import YOLO
 
 def main():
     # Load the model
-    model = YOLO("runs/HRSID/train/weights/best.pt")
+    model = YOLO("runs/training/HRSID/train/weights/best.pt")
 
     # Run the evaluation
-    results = model.val(data="datasets/HRSID/hrsid.yaml")
+    results = model.val(data="datasets/HRSID/hrsid.yaml", split = 'val')
 
     # Print specific metrics
     print("Class indices with average precision:", results.ap_class_index)

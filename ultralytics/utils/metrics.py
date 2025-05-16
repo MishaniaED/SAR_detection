@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from fontTools.designspaceLib.types import clamp
 
 from ultralytics.utils import LOGGER, SimpleClass, TryExcept, checks, plt_settings
 
@@ -14,6 +15,54 @@ OKS_SIGMA = (
     np.array([0.26, 0.25, 0.25, 0.35, 0.35, 0.79, 0.79, 0.72, 0.72, 0.62, 0.62, 1.07, 1.07, 0.87, 0.87, 0.89, 0.89])
     / 10.0
 )
+
+
+def bbox_siou(box1, box2, xywh=True, GIoU=False, DIoU=False, CIoU=False, eps=1e-7):
+    """
+    Calculate the Scale Intersection over Union (SIoU) between bounding boxes.
+
+    This function supports various shapes for `box1` and `box2` as long as the last dimension is 4.
+    For instance, you may pass tensors shaped like (4,), (N, 4), (B, N, 4), or (B, N, 1, 4).
+    Internally, the code will split the last dimension into (x, y, w, h) if `xywh=True`,
+    or (x1, y1, x2, y2) if `xywh=False`.
+
+    Args:
+        box1 (torch.Tensor): A tensor representing one or more bounding boxes, with the last dimension being 4.
+        box2 (torch.Tensor): A tensor representing one or more bounding boxes, with the last dimension being 4.
+        xywh (bool, optional): If True, input boxes are in (x, y, w, h) format. If False, input boxes are in
+                               (x1, y1, x2, y2) format.
+        GIoU (bool, optional): If True, calculate Generalized IoU.
+        DIoU (bool, optional): If True, calculate Distance IoU.
+        CIoU (bool, optional): If True, calculate Complete IoU.
+        eps (float, optional): A small value to avoid division by zero.
+
+    Returns:
+        (torch.Tensor): SIoU сalculated using IoU, GIoU, DIoU, or CIoU values depending on the specified flags.
+    """
+    # TODO: Проверить работу
+    iou = bbox_iou(box1, box2, xywh=xywh, GIoU=GIoU, DIoU=DIoU, CIoU=CIoU, eps=eps)
+
+    if xywh:  # transform from xywh to xyxy
+        (x1, y1, w1, h1), (x2, y2, w2, h2) = box1.chunk(4, -1), box2.chunk(4, -1)
+        b1_x1, b1_x2 = x1 - w1 / 2, x1 + w1 / 2
+        b1_y1, b1_y2 = y1 - h1 / 2, y1 + h1 / 2
+        b2_x1, b2_x2 = x2 - w2 / 2, x2 + w2 / 2
+        b2_y1, b2_y2 = y2 - h2 / 2, y2 + h2 / 2
+    else:  # x1, y1, x2, y2 = box1
+        b1_x1, b1_y1, b1_x2, b1_y2 = box1.chunk(4, -1)  # box1 (x1,y1,x2,y2)
+        b2_x1, b2_y1, b2_x2, b2_y2 = box2.chunk(4, -1)  # box2 (x1,y1,x2,y2)
+        w1, h1 = (b1_x2 - b1_x1).clamp(eps), (b1_y2 - b1_y1).clamp(eps)
+        w2, h2 = (b2_x2 - b2_x1).clamp(eps), (b2_y2 - b2_y1).clamp(eps)
+
+    cx1, cy1 = (b1_x1 + b1_x2) / 2, (b1_y1 + b1_y2) / 2
+    cx2, cy2 = (b2_x1 + b2_x2) / 2, (b2_y1 + b2_y2) / 2
+    D = torch.hypot(cx1 - cx2, cy1 - cy2)
+    S = torch.sqrt(w1 * h1 + w2 * h2).clamp(eps)
+    k_1 = -3
+    k_2 = 1 / 16
+    p = 1 - k_1 * torch.exp(-k_2 * S / D)
+
+    return iou.clamp(min=eps) ** p
 
 
 def bbox_ioa(box1, box2, iou=False, eps=1e-7):

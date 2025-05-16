@@ -9,7 +9,7 @@ from ultralytics.utils.ops import crop_mask, xywh2xyxy, xyxy2xywh
 from ultralytics.utils.tal import RotatedTaskAlignedAssigner, TaskAlignedAssigner, dist2bbox, dist2rbox, make_anchors
 from ultralytics.utils.torch_utils import autocast
 
-from .metrics import bbox_iou, probiou
+from .metrics import bbox_iou, probiou, bbox_siou
 from .tal import bbox2dist
 
 
@@ -107,8 +107,10 @@ class BboxLoss(nn.Module):
     def forward(self, pred_dist, pred_bboxes, anchor_points, target_bboxes, target_scores, target_scores_sum, fg_mask):
         """Compute IoU and DFL losses for bounding boxes."""
         weight = target_scores.sum(-1)[fg_mask].unsqueeze(-1)
-        iou = bbox_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True)
-        loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
+        # iou = bbox_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True)   TODO
+        # loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
+        siou = bbox_siou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=False)
+        loss_iou = ((1.0 - siou) * weight).sum() / target_scores_sum
 
         # DFL loss
         if self.dfl_loss:
@@ -264,6 +266,7 @@ class v8DetectionLoss:
         loss[0] *= self.hyp.box  # box gain
         loss[1] *= self.hyp.cls  # cls gain
         loss[2] *= self.hyp.dfl  # dfl gain
+        # TODO: скорректировать лосс с помощью домножения на функцию
 
         return loss * batch_size, loss.detach()  # loss(box, cls, dfl)
 
