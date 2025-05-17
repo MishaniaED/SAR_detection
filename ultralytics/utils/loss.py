@@ -107,10 +107,10 @@ class BboxLoss(nn.Module):
     def forward(self, pred_dist, pred_bboxes, anchor_points, target_bboxes, target_scores, target_scores_sum, fg_mask):
         """Compute IoU and DFL losses for bounding boxes."""
         weight = target_scores.sum(-1)[fg_mask].unsqueeze(-1)
-        # iou = bbox_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True)   TODO
-        # loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
-        siou = bbox_siou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=False)
-        loss_iou = ((1.0 - siou) * weight).sum() / target_scores_sum
+        iou = bbox_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True)
+        loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
+        # siou = bbox_siou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=False)    TODO
+        # loss_iou = ((1.0 - siou) * weight).sum() / target_scores_sum
 
         # DFL loss
         if self.dfl_loss:

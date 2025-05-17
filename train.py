@@ -15,17 +15,17 @@ from ultralytics import YOLO
 #       3. Запустить модель на Каждом из датасетов с определенными настройками как в статьях.
 def main():
     # Загрузите модель YOLOv10
-    model = YOLO('ultralytics/cfg/models/v10/yolov10n.yaml', task='detect')  # или 'yolov10s.pt', 'yolov10m.pt' и т.д.
+    model = YOLO('ultralytics/cfg/models/v10/yolov10n_sfc_conv2.yaml', task='detect')  # или 'yolov10s.pt', 'yolov10m.pt' и т.д.
     device = 0 if torch.cuda.is_available() else 'cpu'
 
     # Обучите модель
     model.train(
         data='datasets/HRSID/hrsid.yaml',
-        epochs=5,
+        epochs=300,
         imgsz=640,
         batch=16,
         device=device,  # Укажите GPU, если доступен
-        patience=20,    # Количество эпох без улучшений для остановки обучения
+        patience=50,    # Количество эпох без улучшений для остановки обучения
         pretrained=False,   # Определяет, следует ли начинать обучение с предварительно подготовленной модели
         optimizer='SGD',
         lr0=0.01,   # Начальная скорость обучения (т.е. SGD=1E-2, Adam=1E-3)
@@ -36,8 +36,8 @@ def main():
 
         # Настройка сохранения
         project='runs/training/HRSID',  # Основная папка для экспериментов
-        name='yolov10n_SIoU_5epoch',  # Имя подпапки для конкретного запуска
-        exist_ok=True,  # Продолжить обучение в существующей папке
+        name='yolov10n_sfs_conv2_silu_300epoch',  # Имя подпапки для конкретного запуска
+        exist_ok=False,  # Продолжить обучение в существующей папке
         plots=True,  # Включить графики обучения
 
         # Аугментации
