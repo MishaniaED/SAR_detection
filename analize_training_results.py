@@ -1,10 +1,5 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-import os
-from pathlib import Path
-
-import pandas as pd
-import matplotlib.pyplot as plt
 from pathlib import Path
 import os
 
@@ -12,7 +7,8 @@ import os
 def analyze_experiment(csv_path, output_dir):
     try:
         # Создаем папку для графиков
-        plots_dir = Path(output_dir) / 'training'
+        # plots_dir = Path(output_dir) / 'training_not_augmented'
+        plots_dir = Path(output_dir) / 'training_augmented'
         plots_dir.mkdir(parents=True, exist_ok=True)
 
         # Читаем данные
@@ -122,7 +118,8 @@ def process_all_experiments(root_dir, output_dir):
         ]
 
         # Сохраняем результаты
-        output_csv = Path(output_dir) / 'experiments_summary.csv'
+        output_csv = Path(output_dir) / 'experiments_augmented_summary.csv'
+        # output_csv = Path(output_dir) / 'experiments_not_augmented_summary.csv'
         result_df[columns].to_csv(
             output_csv,
             index=False,
@@ -137,6 +134,17 @@ def process_all_experiments(root_dir, output_dir):
 
 # Использование:
 process_all_experiments(
-    root_dir='runs/training/HRSID',  # Замените на реальный путь
-    output_dir='runs_analize/training'
+    # root_dir='runs/training/HRSID/augmented',
+    # output_dir='runs_analize/training/HRSID'
+    # root_dir='runs/training/SAR_AirCraft/augmented',
+    # output_dir='runs_analize/training/SAR-AIRcraft'
+    root_dir='runs/training/SSDD/augmented',
+    output_dir='runs_analize/training/SSDD'
+
+    # root_dir='runs/training/HRSID/not_augmented',
+    # output_dir='runs_analize/training/HRSID'
+    # root_dir='runs/training/SAR_AirCraft/not_augmented',
+    # output_dir='runs_analize/training/SAR-AIRcraft'
+    # root_dir='runs/training/SSDD/not_augmented',
+    # output_dir='runs_analize/training/SSDD'
 )

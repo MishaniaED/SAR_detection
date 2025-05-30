@@ -1,6 +1,7 @@
-# import os
-#
-# val_labels = "datasets/HRSID/labels/val"
+import os
+from pathlib import Path
+
+# val_labels = "datasets/SAR_AirCraft-1.0/labels/val"
 # empty_files = []
 #
 # for file in os.listdir(val_labels):
@@ -12,12 +13,11 @@
 # print(f"Найдено пустых аннотаций: {len(empty_files)}")
 # print(empty_files)
 
-import os
-from pathlib import Path
+
 
 # Пути к папкам
-images_dir = Path("datasets/HRSID/images/val")
-labels_dir = Path("datasets/HRSID/labels/val")
+images_dir = Path("datasets/SAR_AirCraft-1.0/images/val")
+labels_dir = Path("datasets/SAR_AirCraft-1.0/labels/val")
 
 # Получаем имена файлов без расширений
 image_files = {f.stem for f in images_dir.glob("*") if f.suffix in [".jpg", ".png", ".jpeg"]}

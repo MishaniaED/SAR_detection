@@ -55,6 +55,7 @@ __all__ = (
 )
 
 
+
 class FractionalGaborFilter(nn.Module):
     """Реализация дробного преобразования Габора для анализа текстурных признаков.
 
@@ -131,11 +132,12 @@ class GaborSingle(nn.Module):
         )
         nn.init.normal_(self.t)
         self.silu = nn.SiLU(inplace=True)
+        self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x):
         out = self.gabor(self.t)
         out = F.conv2d(x, out, stride=1, padding=(out.shape[-2] - 1) // 2)
-        out = F.dropout(self.silu(out), 0.3)
+        out = F.dropout(self.relu(out), 0.3)
         out = F.pad(out, (1, 0, 1, 0), mode="constant", value=0)  # Padding on the left and top
         out = F.max_pool2d(out, 2, stride=1, padding=0)
         return out
@@ -300,6 +302,7 @@ class SFSConv(nn.Module):
         super().__init__()
         self.PWC0 = Conv(c1, c1 // 2, 1)
         self.PWC1 = Conv(c1, c1 // 2, 1)
+        self.compression = Conv(c1 // 2, c1 // 2, 1, 2)
         self.SPU = SPU(c1 // 2, c2)
 
         assert filter in (
@@ -311,49 +314,45 @@ class SFSConv(nn.Module):
         elif filter == "FrGT":
             self.FPU = GaborFPU(c1 // 2, c2, order)
 
+
         self.PWC_o = Conv(c2, c2, 1)
         self.advavg = nn.AdaptiveAvgPool2d(1)
 
     def forward(self, x):
-        out = torch.cat([self.SPU(self.PWC0(x)), self.FPU(self.PWC1(x))], dim=1)
+        # x_spa = self.SPU(self.compression(self.PWC0(x)))
+        # x_fre = self.FPU(self.compression(self.PWC1(x)))
+        x_spa = self.SPU(self.PWC0(x))
+        x_fre = self.FPU(self.PWC1(x))
+        out = torch.cat([x_spa, x_fre], dim=1)
         out = F.softmax(self.advavg(out), dim=1) * out
         out1, out2 = torch.split(out, out.size(1) // 2, dim=1)
         return self.PWC_o(out1 + out2)
 
 
-# class C2fSFS(nn.Module):
-#     """Faster Implementation of CSP Bottleneck with 2 SFS convolutions."""
-#
-#     def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5):
-#         """
-#         Initialize a CSP bottleneck with 2 convolutions.
-#
-#         Args:
-#             c1 (int): Input channels.
-#             c2 (int): Output channels.
-#             n (int): Number of Bottleneck blocks.
-#             shortcut (bool): Whether to use shortcut connections.
-#             g (int): Groups for convolutions.
-#             e (float): Expansion ratio.
-#         """
+# class SFSConv(nn.Module):
+#     def __init__(self, c1, c2, order=0.25, filter="FrGT"):
 #         super().__init__()
-#         self.c = int(c2 * e)  # hidden channels
-#         self.cv1 = SFSConv(c1, 2 * self.c, 1, 1)
-#         self.cv2 = SFSConv((2 + n) * self.c, c2, 1)  # optional act=FReLU(c2)
-#         self.m = nn.ModuleList(Bottleneck(self.c, self.c, shortcut, g, k=((3, 3), (3, 3)), e=1.0) for _ in range(n))
+#         self.PWC0 = Conv(c1, c1 // 2, 1)
+#         self.PWC1 = Conv(c1, c1 // 2, 1)
+#         self.SPU = SPU(c1 // 2, c2)
+#
+#         assert filter in (
+#             "FrFT",
+#             "FrGT",
+#         ), "The filter type must be either Fractional Fourier Transform(FrFT) or Fractional Gabor Transform(FrGT)."
+#         if filter == "FrFT":
+#             self.FPU = FourierFPU(c1 // 2, c2, order)
+#         elif filter == "FrGT":
+#             self.FPU = GaborFPU(c1 // 2, c2, order)
+#
+#         self.PWC_o = Conv(c2, c2, 1)
+#         self.advavg = nn.AdaptiveAvgPool2d(1)
 #
 #     def forward(self, x):
-#         """Forward pass through C2f layer."""
-#         y = list(self.cv1(x).chunk(2, 1))
-#         y.extend(m(y[-1]) for m in self.m)
-#         return self.cv2(torch.cat(y, 1))
-#
-#     def forward_split(self, x):
-#         """Forward pass using split() instead of chunk()."""
-#         y = self.cv1(x).split((self.c, self.c), 1)
-#         y = [y[0], y[1]]
-#         y.extend(m(y[-1]) for m in self.m)
-#         return self.cv2(torch.cat(y, 1))
+#         out = torch.cat([self.SPU(self.PWC0(x)), self.FPU(self.PWC1(x))], dim=1)
+#         out = F.softmax(self.advavg(out), dim=1) * out
+#         out1, out2 = torch.split(out, out.size(1) // 2, dim=1)
+#         return self.PWC_o(out1 + out2)
 
 
 class DFL(nn.Module):

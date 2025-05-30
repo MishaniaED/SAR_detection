@@ -1,0 +1,36 @@
+# Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
+
+# YOLOv10n object detection model with P3/8 - P5/32 outputs
+# Model docs: https://docs.ultralytics.com/models/yolov10
+# Task docs: https://docs.ultralytics.com/tasks/detect
+
+# Parameters
+nc: 1 # number of classes
+scales: # model compound scaling constants, i.e. 'model=yolov10n.yaml' will call yolov10.yaml with scale 'n'
+  # [depth, width, max_channels]
+  n: [1.0, 1.0, 512]
+
+backbone:
+  # [from, repeats, module, args]
+  - [-1, 1, Conv, [32, 6, 2, 2]]  # 0-P1/2
+  - [-1, 1, Conv, [64, 3, 2]]     # 1-P2/4
+  - [-1, 1, SFSConv, [64]]        # 2-Stage 1
+  - [-1, 1, Conv, [128, 3, 2]]    # 3-P3/8
+  - [-1, 1, SFSConv, [128]]       # 4-Stage 2
+  - [-1, 1, Conv, [256, 3, 2]]    # 5-P4/16
+  - [-1, 1, SFSConv, [256]]       # 6-Stage 3
+  - [-1, 1, Conv, [512, 3, 2]]    # 7-P5/32
+  - [-1, 1, SFSConv, [512]]       # 8-Stage 4
+
+
+# YOLOv10.0n head
+head:
+  - [-1, 1, Conv, [256, 1, 1]]                  # 9
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]  # 10
+  - [[-1, 6], 1, Concat, [1]]                   # cat Stage 3
+  - [-1, 1, Conv, [128, 1, 1]]                  # 12
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]  # 13
+  - [[-1, 4], 1, Concat, [1]]                   # cat Stage 2
+  - [-1, 1, Conv, [128, 1, 1]]                  # 15
+
+  - [[-1, 1], 1, v10Detect, [nc]]               # Detect
