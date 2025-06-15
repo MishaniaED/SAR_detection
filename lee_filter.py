@@ -8,11 +8,21 @@ import pandas as pd
 from matplotlib import patches
 from tqdm import tqdm
 
+
 # TODO: guided filter
 
-def apply_lee_filter(image, window_size=3, noise_var=0.25):
+def apply_lee_filter(image, window_size=3, MV=0.25):
     """
-    Фильтр Ли
+    Фильтр Ли для подавления мультипликативного спекл-шума
+
+    Параметры:
+    image - входное изображение
+    window_size - размер окна фильтра (нечетное число)
+    MV - дисперсия мультипликативного шума (экспериментально подбирается)
+
+    Формула:
+    filtered = LM + K * (PC - LM)
+    K = LV / (LM² * MV + LV)
     """
     # Конвертация и нормализация
     image = np.float32(image) / 255.0
@@ -25,7 +35,8 @@ def apply_lee_filter(image, window_size=3, noise_var=0.25):
     variance = np.maximum(mean_sq - mean ** 2, 1e-6)
 
     # Расчет коэффициента усиления
-    k = variance / (variance + noise_var)
+    # k = variance / (variance + MV)
+    k = variance / ((mean**2 * MV) + variance)
 
     # Применение фильтра
     filtered = mean + k * (image - mean)
@@ -34,7 +45,7 @@ def apply_lee_filter(image, window_size=3, noise_var=0.25):
     return np.uint8(np.clip(filtered * 255, 0, 255))
 
 
-def process_folder(input_folder, output_folder, window_size=3, noise_var=0.5):
+def process_folder(input_folder, output_folder, window_size=3, MV=0.5):
     """Обработка всех изображений в папке"""
     # Создаем выходную папку если не существует
     os.makedirs(output_folder, exist_ok=True)
@@ -61,7 +72,7 @@ def process_folder(input_folder, output_folder, window_size=3, noise_var=0.5):
                 raise ValueError(f"Не удалось прочитать файл {input_path}")
 
             # Применяем фильтр Ли
-            filtered_img = apply_lee_filter(img, window_size, noise_var)
+            filtered_img = apply_lee_filter(img, window_size, MV)
 
             # Сохраняем результат
             cv2.imwrite(output_path, filtered_img)
@@ -70,7 +81,7 @@ def process_folder(input_folder, output_folder, window_size=3, noise_var=0.5):
             print(f"\nОшибка при обработке {input_path}: {str(e)}")
 
 
-def parameters_test(input_path, output_folder, window_sizes=[3, 5, 7, 9], noise_vars=np.arange(0.1, 0.55, 0.05)):
+def parameters_test(input_path, output_folder, window_sizes=[3, 5, 7, 9], MV=np.arange(0.1, 0.55, 0.05)):
     """Тестирование разных параметров фильтра для одного изображения"""
     # Читаем изображение
     img = cv2.imread(input_path, cv2.IMREAD_GRAYSCALE)
@@ -81,14 +92,14 @@ def parameters_test(input_path, output_folder, window_sizes=[3, 5, 7, 9], noise_
     os.makedirs(output_folder, exist_ok=True)
 
     # Генерируем все комбинации параметров
-    params = list(itertools.product(window_sizes, noise_vars))
+    params = list(itertools.product(window_sizes, MV))
     results = []
 
     # Обрабатываем все комбинации
-    for ws, nv in tqdm(params, desc="Тестирование параметров"):
+    for ws, mv in tqdm(params, desc="Тестирование параметров"):
         try:
             # Применяем фильтр
-            filtered = apply_lee_filter(img, window_size=ws, noise_var=nv)
+            filtered = apply_lee_filter(img, window_size=ws, MV=mv)
             # Контрастное усиление
             # clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
             # filtered = clahe.apply(filtered)
@@ -96,7 +107,7 @@ def parameters_test(input_path, output_folder, window_sizes=[3, 5, 7, 9], noise_
 
             # Формируем имя файла
             base_name = os.path.splitext(os.path.basename(input_path))[0]
-            output_name = f"{base_name}_ws{ws}_nv{nv:.2f}.png"
+            output_name = f"{base_name}_ws{ws}_nv{mv:.2f}.png"
             output_path = os.path.join(output_folder, output_name)
 
             # Сохраняем результат
@@ -117,7 +128,7 @@ def parameters_test(input_path, output_folder, window_sizes=[3, 5, 7, 9], noise_
             metrics = {
                 'filename': output_name,  # Добавляем имя файла первым полем
                 'window_size': ws,
-                'noise_var': f"{nv:.2f}",
+                'MV': f"{mv:.2f}",
                 'ENL_original_water': calculate_enl(orig_roi_water),
                 'ENL_filtered_water': calculate_enl(filtered_roi_water),
                 'SSI_water': calculate_ssi(orig_roi_water, filtered_roi_water),
@@ -130,7 +141,7 @@ def parameters_test(input_path, output_folder, window_sizes=[3, 5, 7, 9], noise_
             results.append(metrics)
 
         except Exception as e:
-            print(f"\nОшибка для параметров ws={ws}, nv={nv}: {str(e)}")
+            print(f"\nОшибка для параметров ws={ws}, nv={mv}: {str(e)}")
 
     # Сохраняем метрики в CSV
     df = pd.DataFrame(results)
@@ -139,7 +150,7 @@ def parameters_test(input_path, output_folder, window_sizes=[3, 5, 7, 9], noise_
     columns_order = [
         'filename',
         'window_size',
-        'noise_var',
+        'MV',
         'ENL_original_water',
         'ENL_filtered_water',
         'SSI_water',
@@ -152,31 +163,34 @@ def parameters_test(input_path, output_folder, window_sizes=[3, 5, 7, 9], noise_
 
     df[columns_order].to_csv(os.path.join(output_folder, 'metrics.csv'), index=False, sep=';')
 
+
 def calculate_enl(image_roi):
     """
     image_roi: однородная область изображения (например, водная поверхность)
     """
     mean = np.mean(image_roi)
     std = np.std(image_roi)
-    return (mean**2) / (std**2)
+    return (mean ** 2) / (std ** 2)
+
 
 def calculate_ssi(original_roi, filtered_roi):
     return np.std(filtered_roi) / np.std(original_roi)
 
+
 def calculate_epi(original, filtered):
     sobel_orig = cv2.Sobel(original, cv2.CV_64F, 1, 1)
     sobel_filt = cv2.Sobel(filtered, cv2.CV_64F, 1, 1)
-    return np.corrcoef(sobel_orig.flatten(), sobel_filt.flatten())[0,1]
+    return np.corrcoef(sobel_orig.flatten(), sobel_filt.flatten())[0, 1]
+
 
 def plot_roi(image, title, x1, x2, y1, y2):
-    fig, ax = plt.subplots(figsize=(10,6))
+    fig, ax = plt.subplots(figsize=(10, 6))
     ax.imshow(image, cmap='gray')
-    rect = patches.Rectangle((x1, y1), x2-x1, y2-y1, linewidth=2,
-                           edgecolor='r', facecolor='none')
+    rect = patches.Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=2,
+                             edgecolor='r', facecolor='none')
     ax.add_patch(rect)
     plt.title(title)
     plt.show()
-
 
 
 # sample = cv2.imread('datasets/HRSID/processed_images/testing/P0001_0_800_8400_9200_ws3_nv0.05.png', 0)
@@ -205,34 +219,32 @@ def plot_roi(image, title, x1, x2, y1, y2):
 # cv2.waitKey(0)
 
 if __name__ == "__main__":
-    input_folder = "datasets/SAR_AirCraft-1.0/images/val"
-    output_folder = "datasets/SAR_AirCraft-1.0/processed_images/val"
+    input_folder = "datasets/HRSID/images_true/train"
+    output_folder = "datasets/HRSID/images/testing_Le+fixed"
 
-    # supported_formats = ('.jpg', '.jpeg', '.png', '.bmp', '.tiff')
-    # files = [f for f in os.listdir(input_folder) if f.lower().endswith(supported_formats)]
-    #
-    # if not files:
-    #     print("Нет изображений для тестирования!")
-    #     exit(1)
-    #
-    # test_image = os.path.join(input_folder, files[1])
-    # print(f"Тестирование на изображении: {test_image}")
-    #
-    # # Запускаем тест
-    # parameters_test(
-    #     input_path=test_image,
-    #     output_folder=output_folder,
-    #     window_sizes=[3, 5, 7, 9],  # Можно изменить значения
-    #     noise_vars=np.arange(0.05, 0.55, 0.05)  # От 0.1 до 0.5 с шагом 0.05
-    # )
+    supported_formats = ('.jpg', '.jpeg', '.png', '.bmp', '.tiff')
+    files = [f for f in os.listdir(input_folder) if f.lower().endswith(supported_formats)]
 
+    if not files:
+        print("Нет изображений для тестирования!")
+        exit(1)
 
+    test_image = os.path.join(input_folder, files[1])
+    print(f"Тестирование на изображении: {test_image}")
 
-    print(f"Начата обработка...")
-    process_folder(
-        input_folder=input_folder,
+    # Запускаем тест
+    parameters_test(
+        input_path=test_image,
         output_folder=output_folder,
-        window_size=3,
-        noise_var=0.05
+        window_sizes=[3, 5, 7, 9],  # Можно изменить значения
+        MV=np.arange(0.05, 0.55, 0.05)  # От 0.1 до 0.5 с шагом 0.05
     )
-    print(f"\nОбработка завершена! Результаты сохранены в {output_folder}")
+
+    # print(f"Начата обработка...")
+    # process_folder(
+    #     input_folder=input_folder,
+    #     output_folder=output_folder,
+    #     window_size=3,
+    #     MV=0.05
+    # )
+    # print(f"\nОбработка завершена! Результаты сохранены в {output_folder}")
